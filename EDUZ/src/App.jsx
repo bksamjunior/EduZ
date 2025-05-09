@@ -4,17 +4,21 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import Watermark from './components/Watermark';
 
 function AppLayout() {
   const location = useLocation();
   
-  const hideFooterOn = ['/login', '/signup']; // Add more routes if needed
+  const hideFooterOn = []; // Add more routes if needed
   const shouldShowFooter = !hideFooterOn.includes(location.pathname);
 
-  const hideNavbarOn = ['/signup']; // Add more routes if needed
+  const hideNavbarOn = []; // Add more routes if needed
   const shouldShowNavbar = !hideNavbarOn.includes(location.pathname);
 
-  return (
+  const hideWatermarkOn = []; // Add more routes if needed
+  const shouldShowWatermark = !hideWatermarkOn.includes(location.pathname);
+
+ return (
     <div className="app-container">
      {shouldShowNavbar && <Navbar />}
       <main className="main-content">
@@ -26,6 +30,7 @@ function AppLayout() {
         </Routes>
       </main>
       {shouldShowFooter && <Footer />}
+      <Watermark />
     </div>
   );
 }

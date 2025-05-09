@@ -1,0 +1,22 @@
+.watermark {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0.03;
+  font-size: 8rem;
+  font-weight: bold;
+  pointer-events: none; /* Prevent interaction */
+  z-index: 0;
+  color: #000;
+  font-weight: bold;
+  -webkit-user-select: none; /* Standard */
+  user-select: none; /* Safari */
+  white-space: nowrap;
+}
+
+@media (max-width: 360px) {
+  .watermark {
+    font-size: 5rem; /* Adjust size for smaller screens */
+  }
+}
