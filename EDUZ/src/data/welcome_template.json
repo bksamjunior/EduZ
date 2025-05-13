@@ -3,31 +3,36 @@
     "id": 1,
     "user_type": "Individual",
     "img_src": "",
-    "description": ""
+    "description": "",
+    "link": ""
   },
   {
     "id": 2,
     "user_type": "Student",
     "img_src": "",
-    "description": ""
+    "description": "",
+    "link": ""
   },
   {
     "id": 3,
     "user_type": "School",
     "img_src": "",
-    "description": ""
+    "description": "",
+    "link": ""
   },
   {
     "id": 4,
     "user_type": "Organization",
     "img_src": "",
-    "description": ""
+    "description": "",
+    "link": ""
   },
   {
     "id": 5,
     "user_type": "Group",
     "img_src": "",
-    "description": ""
+    "description": "",
+    "link": ""
   }
   
 ]

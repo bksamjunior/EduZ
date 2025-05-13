@@ -11,14 +11,14 @@ function Render_template(){
       
       {
         template_info.map((template) => (
-          <li key={template.id}>
-            <div className="template-card">
+            <div className="template-card" key={template.id}>
               <h3>{template.user_type}</h3>
               <img src={template.img_src} alt={template.user_type} />
               <p>{template.description}</p>
-              <button className="explore-button">Explore</button>
+              <Link to={template.link}>
+                <button className="explore-button">Explore</button>
+              </Link>
             </div>
-          </li>
         ))
       }
       </div>
