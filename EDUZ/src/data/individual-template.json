@@ -1,0 +1,37 @@
+[
+  {
+    "id": 1,
+    "heading": "Teach a Course",
+    "description": ""
+  },
+  {
+    "id": 2,
+    "heading": "Join a Course",
+    "description": ""
+  },
+  {
+    "id": 3,
+    "heading": "Join a Study Group",
+    "description": ""
+  },
+  {
+    "id": 4,
+    "heading": "Create/Join a Community",
+    "description": ""
+  },
+  {
+    "id": 5,
+    "heading": "Share/Sell Resources",
+    "description": ""
+  },
+  {
+    "id": 6,
+    "heading": "Take an Exam",
+    "description": ""
+  },
+  {
+    "id": 7,
+    "heading": "Create an Exam",
+    "description": ""
+  }
+]

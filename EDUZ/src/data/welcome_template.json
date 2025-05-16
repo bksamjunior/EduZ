@@ -4,35 +4,35 @@
     "user_type": "Individual",
     "img_src": "",
     "description": "",
-    "link": ""
+    "link": "/individual"
   },
   {
     "id": 2,
     "user_type": "Student",
     "img_src": "",
     "description": "",
-    "link": ""
+    "link": "/student"
   },
   {
     "id": 3,
     "user_type": "School",
     "img_src": "",
     "description": "",
-    "link": ""
+    "link": "/school"
   },
   {
     "id": 4,
     "user_type": "Organization",
     "img_src": "",
     "description": "",
-    "link": ""
+    "link": "/organization"
   },
   {
     "id": 5,
     "user_type": "Group",
     "img_src": "",
     "description": "",
-    "link": ""
+    "link": "/group"
   }
   
 ]

@@ -1,7 +1,12 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import Welcome from './pages/welcome';
+import Welcome from './pages/Welcome';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import Individual from './pages/Individual';
+// import Student from './pages/Student';
+// import School from './pages/School';
+// import Organisation from './pages/Organisation';
+// import Group from './pages/Group';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import Watermark from './components/Watermark';
@@ -26,6 +31,11 @@ function AppLayout() {
           <Route path="/" element={<Welcome />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/individual" element={<Individual />} />
+          <Route path="/student" element={<Signup />} />
+          <Route path="/school" element={<Signup />} />
+          <Route path="/organistion" element={<Signup />} />
+          <Route path="/group" element={<Signup />} />
           <Route path="*" element={<h2>Page Not Found</h2>} />
         </Routes>
       </main>
