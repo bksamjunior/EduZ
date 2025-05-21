@@ -27,7 +27,7 @@
   border-radius: 20px;
   text-align: center;
   font-style: italic;
-  t
+  
 }
 
 .template-container{
@@ -36,6 +36,7 @@
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
+  background-color: #8208bf;
 }
 
 
@@ -47,8 +48,16 @@
   margin: 25px;
   border-radius: 20px;
   background-color: rgb(219, 221, 224);
-  box-shadow: 0 0 15px rgb(153, 9, 205);
+  box-shadow: 0 0 10px rgb(153, 9, 205);
+  transition: all 0.3s;
 
+}
+
+.option:hover{
+  transform: translateY(-20px);
+  background-color: rgb(71, 166, 177);
+  box-shadow: none;
+  border: 2px solid rgb(153, 9, 205);
 }
 
 .button-container{
@@ -57,12 +66,12 @@
   align-items: center;
   margin-top: 20px;
   width: 80%;
-  border: 1px solid #b2b;
+  /* border: 1px solid #b2b; */
   border-radius: 20px;
 }
 
 .button{
-  border: 1px solid #b2b;
+  /* border: 1px solid #b2b; */
   border-radius: 20px;
   display: flex;
   flex-direction: column;
