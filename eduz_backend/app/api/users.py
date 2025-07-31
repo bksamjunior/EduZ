@@ -14,6 +14,7 @@ def register(user: UserCreate, db: Session = Depends(database.get_db)):
     existing_user = db.query(User).filter(User.email == user.email).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
+      
     new_user = User(
         email=user.email,
         name=user.name,
@@ -28,10 +29,11 @@ def register(user: UserCreate, db: Session = Depends(database.get_db)):
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(database.get_db)):
     user = db.query(User).filter(User.email == form_data.username).first()
+    
     if not user or not verify_password(form_data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     access_token = create_access_token(data={"sub": user.email, "role": user.role})
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "role":user.role}
 
     pass
