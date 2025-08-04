@@ -1,6 +1,8 @@
+from datetime import datetime
 from pydantic import BaseModel, EmailStr, validator
-from typing import Optional
+from typing import List, Optional
 import re
+import json
 class UserCreate(BaseModel):
     email: EmailStr
     name: str
@@ -30,3 +32,35 @@ class UserOut(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+class QuestionCreate(BaseModel):
+    question_text: str
+    options: List[str]             # e.g. ["A) …", "B) …", "C) …", "D) …"]
+    correct_option: str            # must exactly match one entry in `options`
+    topic_id: int
+
+class QuestionOut(QuestionCreate):
+    id: int
+    question_text: str
+    options: List[str]
+    correct_option: str
+    topic_id: int
+    created_by: int
+    approved: bool
+
+    class Config:
+        orm_mode = True
+
+class QuizSessionCreate(BaseModel):
+    subject_id: int  # which subject the student is quizzing on
+
+class QuizSessionOut(BaseModel):
+    id: int
+    user_id: int
+    subject_id: int
+    score: Optional[int]        # may be None until quiz is finished
+    started_at: datetime
+    ended_at: Optional[datetime]
+
+    class Config:
+        orm_mode = True
