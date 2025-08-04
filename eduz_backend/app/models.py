@@ -35,15 +35,8 @@ class Question(Base):
     topic_id = Column(Integer, ForeignKey("topics.id"))
     created_by = Column(Integer, ForeignKey("users.id"))
     approved = Column(Boolean, default=False)
-    
-    #TO DO:To be added later
-    # @property
-    # def options(self):
-    #     return json.loads(self._options)
 
-    # @options.setter
-    # def options(self, value):
-    #     self._options = json.dumps(value)
+    systems = Column(String, nullable=True)
 
 class Quiz_session(Base):
     __tablename__ = "quiz_sessions"

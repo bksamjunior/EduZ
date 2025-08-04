@@ -39,7 +39,7 @@ class QuestionCreate(BaseModel):
     correct_option: str            # must exactly match one entry in `options`
     topic_id: int
 
-class QuestionOut(QuestionCreate):
+class QuestionOut(BaseModel):
     id: int
     question_text: str
     options: List[str]
