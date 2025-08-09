@@ -36,8 +36,17 @@ class Token(BaseModel):
 class QuestionCreate(BaseModel):
     question_text: str
     options: List[str]             # e.g. ["A) …", "B) …", "C) …", "D) …"]
-    correct_option: str            # must exactly match one entry in `options`
+    correct_option: str 
+    branch_id: Optional[int] = None           # must exactly match one entry in `options`
     topic_id: int
+    systems:  Optional[str] = None
+
+    @validator('correct_option')
+    def correct_option_must_be_in_options(cls, v, values):
+        options = values.get('options')
+        if options and v not in options:
+            raise ValueError('correct_option must be one of the options')
+        return v
 
 class QuestionOut(BaseModel):
     id: int
@@ -45,6 +54,7 @@ class QuestionOut(BaseModel):
     options: List[str]
     correct_option: str
     topic_id: int
+    branch_id: Optional[int] = None
     created_by: int
     approved: bool
 
