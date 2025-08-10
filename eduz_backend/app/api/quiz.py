@@ -13,21 +13,24 @@ from app.schemas import (
     QuizQuestionResponse,
     QuizSubmissionRequest,
     QuizResultOut,
-    QuizSessionOut
-)
+    QuizSessionOut,
+    QuizStartResponse
+    )
 from typing import List, Optional
+
+
 
 router = APIRouter()
 
 @router.post(
     "/start",
-    response_model=List[QuizQuestionResponse], # Return a list of questions
-    dependencies=[Depends(require_role("student","admin"))]
+    response_model=QuizStartResponse, # Return questions and session id
+    dependencies=[Depends(require_role("student","teacher","admin"))]
 )
 def start_quiz(
     payload: QuizStartRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("student","admin")) # Ensure current_user is typed
+    current_user: User = Depends(require_role("student","teacher","admin")) # Ensure current_user is typed
 ):
     """
     Starts a new quiz session for the logged-in student.
@@ -35,12 +38,18 @@ def start_quiz(
     """
     questions_query = db.query(Question).filter(Question.approved == True)
 
+    # Join to Subject for level filtering
+    questions_query = questions_query.join(Topic).join(Subject)
+
+    if payload.level:
+        questions_query = questions_query.filter(Subject.level == payload.level)
+
     if payload.subject_id:
         # Filter by subject and ensure the subject exists
         subject = db.query(Subject).filter(Subject.id == payload.subject_id).first()
         if not subject:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found.")
-        questions_query = questions_query.join(Topic).join(Subject).filter(Subject.id == payload.subject_id)
+        questions_query = questions_query.filter(Subject.id == payload.subject_id)
     elif payload.topic_id:
         # Filter by topic and ensure the topic exists
         topic = db.query(Topic).filter(Topic.id == payload.topic_id).first()
@@ -104,17 +113,20 @@ def start_quiz(
     # but that's a security risk if the frontend can easily access it.
     # The safest is to re-fetch/re-verify answers on submission.
 
-    return quiz_questions_response
+    return QuizStartResponse(
+            questions=quiz_questions_response,
+            quiz_session_id=quiz_session.id
+        )
 
 @router.post(
     "/submit",
     response_model=QuizResultOut,
-    dependencies=[Depends(require_role("student","admin"))]
+    dependencies=[Depends(require_role("student","teacher","admin"))]
 )
 def submit_quiz(
     payload: QuizSubmissionRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("student", "admin"))
+    current_user: User = Depends(require_role("student", "teacher", "admin"))
 ):
     """
     Submits a completed quiz session, calculates the score, and records results.
@@ -168,13 +180,38 @@ def submit_quiz(
     db.add(quiz_session) # Mark as dirty if already added, otherwise add
     db.commit()
     db.refresh(quiz_session)
+    return build_quiz_result_out(quiz_session)
+    # Prepare response using helper
 
-    # Prepare response
+def build_quiz_result_out(quiz_session):
+    score = quiz_session.score
     message = f"Quiz completed! You scored is {score}."
-    if total_questions_answered == 0:
+    if quiz_session.total_questions == 0:
         message = "Quiz submitted, but no questions were answered."
-
     return QuizResultOut(
         quiz_session=quiz_session,
         message=message
     )
+
+@router.get(
+    "/result/{session_id}",
+    response_model=QuizResultOut,
+    dependencies=[Depends(require_role("student","teacher","admin"))]
+)
+def get_quiz_result(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("student", "teacher", "admin"))
+):
+    """
+    Returns the result of a quiz session for the given session_id.
+    """
+    quiz_session = db.query(Quiz_session).filter(
+        Quiz_session.id == session_id,
+        Quiz_session.user_id == current_user.id
+    ).first()
+    if not quiz_session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz session not found or not belonging to user.")
+    if not quiz_session.ended_at:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quiz session is not yet completed.")
+    return build_quiz_result_out(quiz_session)

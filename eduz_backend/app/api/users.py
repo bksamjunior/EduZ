@@ -3,6 +3,8 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordRequestForm
+from typing import List
+from pydantic import BaseModel
 
 from app.schemas import UserCreate, UserOut, Token
 from app.models import User
@@ -50,15 +52,19 @@ def login(
 def read_current_user(current_user: User = Depends(get_current_user)):
     return current_user
 
+class PromotionRequest(BaseModel):
+    new_role: str
+
 @router.post("/{user_id}/promote", response_model=UserOut,
              dependencies=[Depends(require_role("admin"))])
 
 def promote_user(
     user_id: int,
-    new_role: str,
+    req: PromotionRequest,
     db: Session = Depends(database.get_db),
     _admin: User = Depends(require_role("admin"))
 ):
+    new_role = req.new_role
     """
     Promote a user to a new role. Only admins can call this.
     Allowed promotions: student -> teacher, teacher -> admin.
@@ -81,3 +87,7 @@ def promote_user(
     db.commit()
     db.refresh(user)
     return user
+
+@router.get("/", response_model=List[UserOut], dependencies=[Depends(require_role("admin"))])
+def list_users(db: Session = Depends(database.get_db)):
+    return db.query(User).all()

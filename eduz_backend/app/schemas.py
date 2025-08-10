@@ -75,6 +75,7 @@ class TopicCreate(BaseModel):
     name: str
     subject_id: int
     branch_id: Optional[int] = None
+    level: str
 
 class BranchCreate(BaseModel):
     name: str
@@ -84,6 +85,18 @@ class BranchOut(BaseModel):
     id: int
     name: str
     subject_id: int
+    class Config:
+        from_attributes = True
+
+# Subject schemas
+class SubjectCreate(BaseModel):
+    name: str
+    level: str
+
+class SubjectOut(BaseModel):
+    id: int
+    name: str
+    level: str
     class Config:
         from_attributes = True
 
@@ -104,6 +117,7 @@ class QuizStartRequest(BaseModel):
     topic_id: Optional[int] = None
     branch_id: Optional[int] = None
     num_questions: int = 3 # Default number of questions
+    level: Optional[str] = None
 
     @validator('num_questions')
     def num_questions_must_be_positive(cls, v):
@@ -141,6 +155,10 @@ class QuizSessionOut(BaseModel):
 
     class Config:
         from_attributes = True # Changed from orm_mode to from_attributes for Pydantic V2
+
+class QuizStartResponse(BaseModel):
+    questions: List[QuizQuestionResponse]
+    quiz_session_id: int
 
 class QuizResultOut(BaseModel):
     quiz_session: QuizSessionOut
