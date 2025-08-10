@@ -3,8 +3,9 @@ import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.schemas import QuestionCreate, QuestionOut
-from app.models import Question, Topic
+from app.schemas import QuestionCreate, QuestionOut,BranchOut, TopicOut
+from app.schemas import TopicCreate, BranchCreate
+from app.models import Question, Topic,Branch
 from app.core.database import get_db
 from app.core.auth import require_role
 from typing import List
@@ -56,6 +57,34 @@ def list_questions(db: Session = Depends(get_db)):
     for q in questions:
         q.options = json.loads(q.options)  # Convert string to list
     return questions
+
+# List all topics
+@router.get("/topics", response_model=List[TopicOut])
+def list_topics(db: Session = Depends(get_db)):
+    return db.query(Topic).all()
+
+# List all branches
+@router.get("/branches", response_model=List[BranchOut])
+def list_branches(db: Session = Depends(get_db)):
+    return db.query(Branch).all()
+
+# Add new topic
+@router.post("/topics", response_model=TopicOut, dependencies=[Depends(require_role("teacher", "admin"))])
+def create_topic(payload: TopicCreate, db: Session = Depends(get_db)):
+    topic = Topic(name=payload.name, subject_id=payload.subject_id, branch_id=payload.branch_id)
+    db.add(topic)
+    db.commit()
+    db.refresh(topic)
+    return topic
+
+# Add new branch
+@router.post("/branches", response_model=BranchOut, dependencies=[Depends(require_role("teacher", "admin"))])
+def create_branch(payload: BranchCreate, db: Session = Depends(get_db)):
+    branch = Branch(name=payload.name, subject_id=payload.subject_id)
+    db.add(branch)
+    db.commit()
+    db.refresh(branch)
+    return branch
 # Teacher and Admin can see all questions, including unapproved ones
 @router.get(
     "/unapproved",

@@ -60,7 +60,17 @@ class Quiz_session(Base):
     __tablename__ = "quiz_sessions"
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    subject_id = Column(Integer, ForeignKey("subjects.id"))
-    score = Column(Integer)
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=True) # Made nullable
+    topic_id = Column(Integer, ForeignKey("topics.id"), nullable=True) # New: Link to topic directly
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True) # New: Link to branch directly
+    score = Column(Integer, nullable=True) # Made nullable until quiz is finished
+    total_questions = Column(Integer, nullable=True) # New: Store total questions in quiz
+    correct_answers = Column(Integer, nullable=True) # New: Store correct answers
     started_at = Column(DateTime, default=datetime.utcnow)
-    ended_at = Column(DateTime)
+    ended_at = Column(DateTime, nullable=True) # Made nullable until quiz is finished
+
+    # Optional: Add relationships for easier data retrieval
+    user = relationship("User")
+    subject = relationship("Subject")
+    topic = relationship("Topic")
+    branch = relationship("Branch")
