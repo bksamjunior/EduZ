@@ -1,9 +1,9 @@
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, validator, model_validator # Import model_validator
+from pydantic import BaseModel, EmailStr, validator, model_validator
 from typing import List, Optional
 import re
-import json
 
+# User schemas
 class UserCreate(BaseModel):
     email: EmailStr
     name: str
@@ -27,14 +27,51 @@ class UserOut(BaseModel):
     name: str
     email: str
     role: str
-
     class Config:
-        from_attributes = True # Changed from orm_mode to from_attributes for Pydantic V2
+        from_attributes = True
 
 class Token(BaseModel):
     access_token: str
     token_type: str
 
+# Subject, Branch, Topic
+class SubjectCreate(BaseModel):
+    name: str
+    level: str
+
+class SubjectOut(BaseModel):
+    id: int
+    name: str
+    level: str
+    class Config:
+        from_attributes = True
+
+class BranchCreate(BaseModel):
+    name: str
+    subject_id: int
+
+class BranchOut(BaseModel):
+    id: int
+    name: str
+    subject_id: int
+    class Config:
+        from_attributes = True
+
+class TopicCreate(BaseModel):
+    name: str
+    subject_id: int
+    branch_id: Optional[int] = None
+    level: str
+
+class TopicOut(BaseModel):
+    id: int
+    name: str
+    subject_id: int
+    branch_id: Optional[int] = None
+    class Config:
+        from_attributes = True
+
+# Question
 class QuestionCreate(BaseModel):
     question_text: str
     options: List[str]
@@ -42,6 +79,7 @@ class QuestionCreate(BaseModel):
     branch_id: Optional[int] = None
     topic_id: int
     systems: Optional[str] = None
+    difficulty: int = 3
 
     @validator('correct_option')
     def correct_option_must_be_in_options(cls, v, values):
@@ -59,64 +97,23 @@ class QuestionOut(BaseModel):
     branch_id: Optional[int] = None
     created_by: int
     approved: bool
-
-    class Config:
-        from_attributes = True # Changed from orm_mode to from_attributes for Pydantic V2
-
-class TopicOut(BaseModel):
-    id: int
-    name: str
-    subject_id: int
-    branch_id: Optional[int] = None
+    difficulty: int
     class Config:
         from_attributes = True
 
-class TopicCreate(BaseModel):
-    name: str
-    subject_id: int
-    branch_id: Optional[int] = None
-    level: str
-
-class BranchCreate(BaseModel):
-    name: str
-    subject_id: int
-
-class BranchOut(BaseModel):
-    id: int
-    name: str
-    subject_id: int
-    class Config:
-        from_attributes = True
-
-# Subject schemas
-class SubjectCreate(BaseModel):
-    name: str
-    level: str
-
-class SubjectOut(BaseModel):
-    id: int
-    name: str
-    level: str
-    class Config:
-        from_attributes = True
-
-# New schemas for Quiz mechanism
-
+# Quiz schemas
 class QuizQuestionResponse(BaseModel):
     id: int
     question_text: str
     options: List[str]
-    # correct_option is deliberately omitted for the client
-
     class Config:
-        from_attributes = True # Changed from orm_mode to from_attributes for Pydantic V2
+        from_attributes = True
 
 class QuizStartRequest(BaseModel):
-    # User can specify subject, topic, or branch for the quiz
     subject_id: Optional[int] = None
     topic_id: Optional[int] = None
     branch_id: Optional[int] = None
-    num_questions: int = 3 # Default number of questions
+    num_questions: int = 3
     level: Optional[str] = None
 
     @validator('num_questions')
@@ -125,13 +122,11 @@ class QuizStartRequest(BaseModel):
             raise ValueError('Number of questions must be positive.')
         return v
 
-    # Use model_validator for cross-field validation in Pydantic V2
-    @model_validator(mode='after') # This validator runs after all fields are parsed
+    @model_validator(mode='after')
     def check_at_least_one_filter(self):
         if not any([self.subject_id, self.topic_id, self.branch_id]):
             raise ValueError('At least one of subject_id, topic_id, or branch_id must be provided.')
         return self
-
 
 class UserAnswer(BaseModel):
     question_id: int
@@ -152,9 +147,8 @@ class QuizSessionOut(BaseModel):
     correct_answers: Optional[int]
     started_at: datetime
     ended_at: Optional[datetime]
-
     class Config:
-        from_attributes = True # Changed from orm_mode to from_attributes for Pydantic V2
+        from_attributes = True
 
 class QuizStartResponse(BaseModel):
     questions: List[QuizQuestionResponse]

@@ -7,7 +7,7 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.core.auth import require_role
-from app.models import Quiz_session, Question, Subject, Topic, Branch, User
+from app.models import Quiz_session, Question, Subject, Topic, Branch, User,UserProgress
 from app.schemas import (
     QuizStartRequest,
     QuizQuestionResponse,
@@ -67,14 +67,24 @@ def start_quiz(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Please specify a subject_id, topic_id, or branch_id.")
 
     # Get all matching questions and shuffle them
-    all_questions = questions_query.all()
-    if not all_questions:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No approved questions found for the selected criteria.")
+    questions_by_difficulty = {d: get_question_for_difficulty(db, questions_query, d) for d in range(1,6)}
 
-    random.shuffle(all_questions)
+    selected_questions = []
+    difficulty = 3
 
-    # Select the requested number of questions
-    selected_questions = all_questions[:payload.num_questions]
+    while len(selected_questions) < payload.num_questions:
+        available = questions_by_difficulty.get(difficulty, [])
+        if available:
+            q = random.choice(available)
+            selected_questions.append(q)
+            questions_by_difficulty[difficulty].remove(q)
+        else:
+            # Fallback: try easier, then harder
+            fallback = [d for d in range(1,6) if questions_by_difficulty.get(d)]
+            if not fallback:
+                break  # no questions left
+            difficulty = min(fallback, key=lambda d: abs(d - difficulty))
+
 
     if not selected_questions:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Could not retrieve enough questions for the requested number.")
@@ -89,7 +99,17 @@ def start_quiz(
         total_questions=len(selected_questions),
         score=0, # Initialize score to 0
         correct_answers=0 # Initialize correct answers to 0
+
     )
+
+    # Always reset at the beginning of a new quiz
+    user_progress = db.query(UserProgress).filter_by(user_id=current_user.id).first()
+    if not user_progress:
+        user_progress = UserProgress(user_id=current_user.id, current_difficulty=3)
+    else:
+        user_progress.current_difficulty = 3   # ✅ reset difficulty each new quiz
+        user_progress.incorrect_streak = 0
+
     db.add(quiz_session)
     db.commit()
     db.refresh(quiz_session)
@@ -117,6 +137,10 @@ def start_quiz(
             questions=quiz_questions_response,
             quiz_session_id=quiz_session.id
         )
+# Filter questions based on current difficulty
+def get_question_for_difficulty(db, base_query, difficulty):
+    q = base_query.filter(Question.difficulty == difficulty).all()
+    return q
 
 @router.post(
     "/submit",
@@ -143,6 +167,18 @@ def submit_quiz(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This quiz session has already been submitted.")
 
     correct_answers_count = 0
+
+    user_progress = db.query(UserProgress).filter_by(user_id=current_user.id).first()
+    if user_progress:
+        # Check last answer performance
+        if correct_answers_count / total_questions_answered >= 0.6:
+            # If did well, go harder
+            user_progress.current_difficulty = min(user_progress.current_difficulty + 1, 5)
+        else:
+            # If did poorly, go easier
+            user_progress.current_difficulty = max(user_progress.current_difficulty - 1, 1)
+        db.commit()
+        
     submitted_question_ids = {answer.question_id for answer in payload.answers}
 
     # Fetch all questions that were part of this quiz session

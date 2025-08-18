@@ -41,8 +41,11 @@ def create_question(
         options=options_json,
         correct_option=payload.correct_option,
         topic_id=payload.topic_id,
+        branch_id=payload.branch_id,
+        systems=payload.systems,
         created_by=current_user.id,
         approved=False,
+        difficulty=payload.difficulty 
     )
     db.add(q)
     db.commit()
