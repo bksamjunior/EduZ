@@ -46,7 +46,8 @@ def login(
     access_token = security.create_access_token(
         data={"sub": user.email, "role": user.role}
     )
-    return {"access_token": access_token, "token_type": "bearer", "role": user.role}
+    # Return token plus small user object to avoid extra /me call from front-end
+    return {"access_token": access_token, "token_type": "bearer", "user": {"id": user.id, "role": user.role, "email": user.email}}
 
 @router.get("/me", response_model=UserOut)
 def read_current_user(current_user: User = Depends(get_current_user)):

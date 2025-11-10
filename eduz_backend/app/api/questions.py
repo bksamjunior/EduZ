@@ -33,12 +33,10 @@ def create_question(
     # if not topic:
     #     raise HTTPException(status_code=404, detail="Topic not found")
 
-    # Serialize options list to JSON string for storage
-    options_json = json.dumps(payload.options)
-
+    # Options are now stored as JSONB, no need to serialize
     q = Question(
         question_text=payload.question_text,
-        options=options_json,
+        options=payload.options,
         correct_option=payload.correct_option,
         topic_id=payload.topic_id,
         branch_id=payload.branch_id,
@@ -51,8 +49,7 @@ def create_question(
     db.commit()
     db.refresh(q)
 
-    # Deserialize JSON string back into list for the response
-    q.options = json.loads(q.options)
+    # Options are already in the correct format (JSONB)
     return q
 
 # List all approved questions for students and teachers and Admins
@@ -63,14 +60,18 @@ def create_question(
 )
 def list_questions(db: Session = Depends(get_db)):
     questions = db.query(Question).filter(Question.approved == True).all()
-    for q in questions:
-        q.options = json.loads(q.options)  # Convert string to list
     return questions
 
 # List all subjects
 @router.get("/subjects", response_model=List[SubjectOut])
 def list_subjects(db: Session = Depends(get_db)):
-    return db.query(Subject).all()
+    # Query only the columns we expect to exist in older schemas (id, name, level)
+    rows = db.query(Subject.id, Subject.name, Subject.level).all()
+    # Convert to list of dicts compatible with SubjectOut
+    return [
+        {"id": r[0], "name": r[1], "level": r[2]}
+        for r in rows
+    ]
 
 # List all topics
 @router.get("/topics", response_model=List[TopicOut])
@@ -124,7 +125,8 @@ def list_unapproved(db: Session = Depends(get_db)):
 
 @router.get("/subjects/by_level/{level}", response_model=List[SubjectOut])
 def get_subjects_by_level(level: str, db: Session = Depends(get_db)):
-    return db.query(Subject).filter(Subject.level == level).all()
+    rows = db.query(Subject.id, Subject.name, Subject.level).filter(Subject.level == level).all()
+    return [{"id": r[0], "name": r[1], "level": r[2]} for r in rows]
 
 @router.get("/topics/by_level/{level}", response_model=List[TopicOut])
 def get_topics_by_level(level: str, db: Session = Depends(get_db)):

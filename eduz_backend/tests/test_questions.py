@@ -57,10 +57,8 @@ def test_create_and_list_questions(client, teacher_token, topic, db_session):
     list_resp = client.get("/questions", headers={"Authorization": f"Bearer {teacher_token}"})
     assert list_resp.status_code == 200
 
-    # Ensure options come back as a proper list
+    # Options should now come back as proper lists by default
     questions = list_resp.json()
-    for q in questions:
-        if isinstance(q["options"], str):
-            q["options"] = json.loads(q["options"])
-
-    assert any(q["question_text"] == "What’s 2+2?" for q in questions)
+    assert any(q["question_text"] == "What's 2+2?" for q in questions)
+    # Verify options format
+    assert all(isinstance(q["options"], list) for q in questions)

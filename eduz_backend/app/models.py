@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, DateTime
-from sqlalchemy.dialects.sqlite import JSON 
+from sqlalchemy import JSON
 from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime
 
@@ -18,6 +18,7 @@ class Subject(Base):
     __tablename__ = "subjects"
     id = Column(Integer, primary_key=True)
     name = Column(String)
+    subject_code = Column(String, nullable=True)  # optional exam code / external id (keep as string to preserve leading zeros)
     level = Column(String)
     branches = relationship("Branch", back_populates="subject")
     topics = relationship("Topic", back_populates="subject")
@@ -43,7 +44,7 @@ class Question(Base):
     __tablename__ = "questions"
     id = Column(Integer, primary_key=True)
     question_text = Column(String)
-    options = Column(String) 
+    options = Column(JSON) 
     correct_option = Column(String)
     topic_id = Column(Integer, ForeignKey("topics.id"))
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)

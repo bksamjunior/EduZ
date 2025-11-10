@@ -24,19 +24,25 @@ const Login = () => {
     setApiError('');
     setLoading(true);
     try {
-  // Send as form data: username=email, password
-  const form = new FormData();
-  form.append('username', data.email);
-  form.append('password', data.password);
-  const res = await api.post('/users/login', form);
-  setToken(res.data.access_token);
-  // Fetch user info and set role
-  const userRes = await api.get('/users/me');
-  setRole(userRes.data.role);
+  // Send as application/x-www-form-urlencoded which FastAPI's OAuth2 expects
+  const params = new URLSearchParams();
+  params.append('username', data.email);
+  params.append('password', data.password);
+  const res = await api.post('/users/login', params);
+  setToken(res.data.access_token || res.data.accessToken || res.data.access_token);
+  // If backend returned user info with the token, consume it
+  if (res.data.user?.role) {
+    setRole(res.data.user.role);
+  } else {
+    // otherwise fetch /users/me
+    const userRes = await api.get('/users/me');
+    setRole(userRes.data.role);
+  }
   // Redirect based on role
-  if (userRes.data.role === 'student') navigate('/dashboard/student');
-  else if (userRes.data.role === 'teacher') navigate('/dashboard/teacher');
-  else if (userRes.data.role === 'admin') navigate('/dashboard/admin');
+  const roleToCheck = res.data.user?.role ?? (await api.get('/users/me')).data.role;
+  if (roleToCheck === 'student') navigate('/dashboard/student');
+  else if (roleToCheck === 'teacher') navigate('/dashboard/teacher');
+  else if (roleToCheck === 'admin') navigate('/dashboard/admin');
   notify('Login successful!', { variant: 'success' });
     } catch (err: any) {
       setApiError(err.response?.data?.detail || 'Login failed');

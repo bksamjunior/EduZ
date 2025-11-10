@@ -39,10 +39,13 @@ def require_role(*allowed_roles: str):
     Usage: Depends(require_role("teacher", "admin"))
     """
     def role_checker(current_user: User = Depends(get_current_user)):
-        if current_user.role not in allowed_roles:
+        # Normalize role comparison to be case-insensitive and handle missing roles
+        user_role = (current_user.role or '').strip().lower()
+        allowed_normalized = [r.strip().lower() for r in allowed_roles]
+        if user_role not in allowed_normalized:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Operation not permitted for role '{current_user.role}'."
+                detail=f"Operation not permitted for role '{current_user.role}'. Expected one of: {', '.join(allowed_roles)}"
             )
         return current_user
     return role_checker

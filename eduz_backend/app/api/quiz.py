@@ -67,7 +67,8 @@ def start_quiz(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Please specify a subject_id, topic_id, or branch_id.")
 
     # Get all matching questions and shuffle them
-    questions_by_difficulty = {d: get_question_for_difficulty(db, questions_query, d) for d in range(1,6)}
+    # difficulty allowed range: 1..6
+    questions_by_difficulty = {d: get_question_for_difficulty(db, questions_query, d) for d in range(1,7)}
 
     selected_questions = []
     difficulty = 3
@@ -117,8 +118,9 @@ def start_quiz(
     # Prepare questions for response, deserializing options and omitting correct_option
     quiz_questions_response = []
     for q in selected_questions:
-        # Deserialize the options from JSON string back to a list
-        q_options = json.loads(q.options)
+        # Options are now stored as JSONB, so they're already in the correct format
+        q_options = q.options if q.options else []
+
         quiz_questions_response.append(
             QuizQuestionResponse(
                 id=q.id,
@@ -166,19 +168,8 @@ def submit_quiz(
     if quiz_session.ended_at:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This quiz session has already been submitted.")
 
+    # Initialize counters
     correct_answers_count = 0
-
-    user_progress = db.query(UserProgress).filter_by(user_id=current_user.id).first()
-    if user_progress:
-        # Check last answer performance
-        if correct_answers_count / total_questions_answered >= 0.6:
-            # If did well, go harder
-            user_progress.current_difficulty = min(user_progress.current_difficulty + 1, 5)
-        else:
-            # If did poorly, go easier
-            user_progress.current_difficulty = max(user_progress.current_difficulty - 1, 1)
-        db.commit()
-        
     submitted_question_ids = {answer.question_id for answer in payload.answers}
 
     # Fetch all questions that were part of this quiz session
@@ -194,26 +185,95 @@ def submit_quiz(
 
     for user_answer in payload.answers:
         question = questions_map.get(user_answer.question_id)
+
         if question:
-            # Check if the submitted answer matches the correct_option
-            if user_answer.selected_option == question.correct_option:
-                correct_answers_count += 1
+            # Normalize both stored correct_option and submitted selected_option
+            def _normalize(val):
+                """Return dict with:
+                - raw: normalized single-string (lowercased, whitespace/csv/newline collapsed)
+                - tokens: list of token strings (split by whitespace)
+                - multi: True if multiple tokens present
+                This helper will attempt to decode JSON-encoded string values (e.g. '"a\\nb"')
+                and will strip surrounding quotes if present.
+                """
+                import re, json
+                if val is None:
+                    return {"raw": "", "tokens": [], "multi": False}
+                # If it's not a string, coerce to string
+                if not isinstance(val, str):
+                    val = str(val)
+
+                s = val.strip()
+                # If value looks like a JSON string literal (starts/ends with quotes), try to decode it
+                if (len(s) >= 2 and ((s[0] == '"' and s[-1] == '"') or (s[0] == "'" and s[-1] == "'"))):
+                    try:
+                        decoded = json.loads(s)
+                        # json.loads may return a list/number; coerce to string
+                        if not isinstance(decoded, str):
+                            decoded = str(decoded)
+                        val = decoded
+                    except Exception:
+                        # Fall back to stripping surrounding quotes
+                        val = s[1:-1]
+                else:
+                    val = s
+
+                # Replace escaped newlines (literal backslash-n) and real newlines with spaces
+                val = val.replace('\\n', ' ').replace('\n', ' ')
+                # Replace commas with spaces to treat them as separators
+                val = val.replace(',', ' ')
+                # collapse whitespace
+                v = re.sub(r"\s+", ' ', val).strip()
+                tokens = [t.strip() for t in v.split(' ') if t.strip()]
+                return {"raw": v.lower(), "tokens": [t.lower() for t in tokens], "multi": len(tokens) > 1}
+
+            nq = _normalize(question.correct_option)
+            nu = _normalize(user_answer.selected_option)
+            print(f"Debug: Question correct option: {question.correct_option!r} -> {nq}, User selected option: {user_answer.selected_option!r} -> {nu}")
+
+            # If either side is multi-select, compare as sets (order-insensitive)
+            if nq["multi"] or nu["multi"]:
+                if set(nq["tokens"]) == set(nu["tokens"]):
+                    print("Debug: Correct (multi-select) submitted")
+                    correct_answers_count += 1
+            else:
+                # Single-value compare using normalized raw strings
+                if nq["raw"] == nu["raw"]:
+                    print("Debug: Correct answer submitted")
+                    correct_answers_count += 1
         else:
             # This indicates an invalid question ID was submitted.
             # You might want to log this or handle it differently.
             print(f"Warning: Question ID {user_answer.question_id} not found in database for submission.")
 
 
-    total_questions_answered = len(payload.answers) # Number of questions the user answered
-    
-    score = (correct_answers_count/total_questions_answered) * 100
+    total_questions_answered = len(payload.answers) if payload.answers else 0 # Number of questions the user answered
 
-    quiz_session.score =  score # Score is number of correct answers
+    # Avoid division by zero
+    score = (correct_answers_count/total_questions_answered) * 100 if total_questions_answered > 0 else 0
+
+    quiz_session.score = score
     quiz_session.correct_answers = correct_answers_count
     quiz_session.ended_at = datetime.utcnow()
-    quiz_session.total_questions = total_questions_answered # Update total questions based on submission
+    quiz_session.total_questions = total_questions_answered
 
-    db.add(quiz_session) # Mark as dirty if already added, otherwise add
+    # persist quiz session updates
+    db.add(quiz_session)
+
+    # Update or create user progress now that we can compute performance
+    user_progress = db.query(UserProgress).filter_by(user_id=current_user.id).first()
+    if not user_progress:
+        user_progress = UserProgress(user_id=current_user.id, current_difficulty=3)
+    # If user answered at least one question, update difficulty based on performance
+    if total_questions_answered > 0:
+        if (correct_answers_count / total_questions_answered) >= 0.6:
+            user_progress.current_difficulty = min(user_progress.current_difficulty + 1, 6)
+            user_progress.incorrect_streak = 0
+        else:
+            user_progress.current_difficulty = max(user_progress.current_difficulty - 1, 1)
+            user_progress.incorrect_streak = user_progress.incorrect_streak + 1 if user_progress.incorrect_streak is not None else 1
+    db.add(user_progress)
+
     db.commit()
     db.refresh(quiz_session)
     return build_quiz_result_out(quiz_session)
