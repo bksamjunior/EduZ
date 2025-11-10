@@ -12,6 +12,7 @@ import QuizResultPage from './pages/QuizResultPage';
 import AddQuestionPage from './pages/AddQuestionPage';
 import PromoteUserPage from './pages/PromoteUserPage';
 import QuestionPreviewPage from './pages/QuestionPreviewPage'; // ✅ Import your preview page
+import PageContainer from './components/PageContainer';
 import NavBar from './components/NavBar';
 import { useUserStore } from './store/user';
 import React, { Suspense } from 'react';
@@ -43,7 +44,7 @@ function App() {
   return (
     <>
       {!hideNav && <NavBar />}
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh" bgcolor="grey.100">
+      <Box sx={{ minHeight: '100vh', bgcolor: 'grey.100', width: '100%' }}>
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
@@ -51,56 +52,56 @@ function App() {
 
           {/* Student Dashboard */}
           <Route path="/dashboard/student" element={
-            <ProtectedRoute roles={['student']}><StudentDashboard /></ProtectedRoute>
+            <ProtectedRoute roles={['student']}><PageContainer><StudentDashboard /></PageContainer></ProtectedRoute>
           } />
 
           {/* Quiz Prep */}
           <Route path="/quizprep" element={
             <ProtectedRoute roles={['student', 'teacher']}>
               <Suspense fallback={<div>Loading...</div>}>
-                <QuizPrepPage />
+                <PageContainer><QuizPrepPage /></PageContainer>
               </Suspense>
             </ProtectedRoute>
           } />
 
           {/* Quiz Page */}
           <Route path="/quiz" element={
-            <ProtectedRoute roles={['student', 'teacher']}><QuizPage /></ProtectedRoute>
+            <ProtectedRoute roles={['student', 'teacher']}><PageContainer><QuizPage /></PageContainer></ProtectedRoute>
           } />
 
           {/* Quiz Result */}
           <Route path="/quiz/result" element={
-            <ProtectedRoute roles={['student', 'teacher']}><QuizResultPage /></ProtectedRoute>
+            <ProtectedRoute roles={['student', 'teacher']}><PageContainer><QuizResultPage /></PageContainer></ProtectedRoute>
           } />
 
           {/* Teacher Dashboard */}
           <Route path="/dashboard/teacher" element={
-            <ProtectedRoute roles={['teacher']}><TeacherDashboard /></ProtectedRoute>
+            <ProtectedRoute roles={['teacher']}><PageContainer><TeacherDashboard /></PageContainer></ProtectedRoute>
           } />
 
           {/* Admin Dashboard */}
           <Route path="/dashboard/admin" element={
-            <ProtectedRoute roles={['admin']}><AdminDashboard /></ProtectedRoute>
+            <ProtectedRoute roles={['admin']}><PageContainer><AdminDashboard /></PageContainer></ProtectedRoute>
           } />
 
           {/* Add Question */}
           <Route path="/questions/add" element={
-            <ProtectedRoute roles={['teacher', 'admin']}><AddQuestionPage /></ProtectedRoute>
+            <ProtectedRoute roles={['teacher', 'admin']}><PageContainer><AddQuestionPage /></PageContainer></ProtectedRoute>
           } />
 
           {/* ✅ Preview Question */}
           <Route path="/questions/preview" element={
-            <ProtectedRoute roles={['teacher', 'admin']}><QuestionPreviewPage /></ProtectedRoute>
+            <ProtectedRoute roles={['teacher', 'admin']}><PageContainer><QuestionPreviewPage /></PageContainer></ProtectedRoute>
           } />
 
           {/* Promote User */}
           <Route path="/admin/promote" element={
-            <ProtectedRoute roles={['admin']}><PromoteUserPage /></ProtectedRoute>
+            <ProtectedRoute roles={['admin']}><PageContainer><PromoteUserPage /></PageContainer></ProtectedRoute>
           } />
 
           {/* Manage Entities (you had this earlier, not sure if you still want it) */}
           <Route path="/manage" element={
-            <ProtectedRoute roles={['teacher', 'admin']}><ManageEntitiesPage /></ProtectedRoute>
+            <ProtectedRoute roles={['teacher', 'admin']}><PageContainer><ManageEntitiesPage /></PageContainer></ProtectedRoute>
           } />
         </Routes>
       </Box>
