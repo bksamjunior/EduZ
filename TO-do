@@ -1,0 +1,247 @@
+TO-DO for EduZ project
+
+Summary of missing components / errors and their purpose
+
+CRITICAL: Missing runtime database file
+- There is no checked-in runtime SQLite database file (for example `./data/eduz.db`) in the repository. This is expected (DB files are usually not committed), but it must be created locally before running the backend.
+- How to create: run `python -m app.db.init_db` from the `eduz_backend` environment or run `alembic upgrade head` to apply migrations. Exact commands are in the "What you should run locally" section later in this file.
+
+
+Backend (eduz_backend)
+
+1) generate.py: inappropriate behavior
+- Issue: function hash_password prints the hashed password and returns None. The file executes hash_password("Secret123!") at import time.
+- Purpose: should provide a utility to hash passwords and return the hash for use in creating users or tests. Running at import time leaks output and breaks expected behavior.
+
+2) config.py: seed_data uses Session from sqlalchemy.orm but does not import or reference the project's SessionLocal or use get_db; it binds engine directly which is acceptable but the file assumes models and fields exist. Potential issues:
+- Assumes Subject.id can be set manually from gce_id string. models.Subject.id is Integer; passing GCE alphanumeric ids may cause type error.
+- Uses json and serializes options; fine.
+- Risk: direct session commits and prints on import; callable as script but no CLI guard issues appear.
+
+3) app/models.py
+- Question.options is declared as Column(String) but elsewhere code uses JSON (serializes/deserializes lists). Column type mismatch: should use JSON or Text depending on DB; current code serializes to JSON string so String is acceptable, but tests and SQLAlchemy JSON usage in Quiz_session.responses use sqlite JSON dialect; ensure compatibility.
+- Quiz_session.responses uses JSON import from sqlite dialect; SQLite supports JSON storage as TEXT. OK but confirm migration and alembic versions handle it.
+- Some relationships have back_populates set on one side only (e.g., Question.topic relationship does not specify back_populates). Not critical but inconsistent.
+
+4) app/schemas.py
+- Uses model_validator(mode='after') which requires pydantic v1? The project uses Pydantic decorators mixed; ensure installed pydantic version supports model_validator (pydantic v2). requirements.txt should be checked.
+
+5) app/api/users.py
+- Login endpoint returns token and includes 'role' in return dict, but response_model=Token which only expects access_token and token_type; returning extra fields may be dropped by Pydantic but inconsistent.
+- /login uses OAuth2PasswordRequestForm which expects form-encoded fields; the frontend sends FormData which is fine.
+- register allows only role 'student'; ok.
+- promote_user uses dependencies in function signature and decorator incorrectly: function has both dependencies and _admin param; minor redundancy.
+
+6) app/api/questions.py
+- create_question sets created_by=current_user.id but current_user param is result of require_role dependency which returns current_user; however the function signature defines current_user=Depends(require_role(...)) which will return a User but used in dependencies list too; duplication exists but workable.
+- Many endpoints depend on require_role but sometimes include tokenless access for students; verify consistency.
+
+7) app/api/quiz.py
+- start_quiz: questions_query = questions_query.join(Topic).join(Subject) – joining may be incorrect: Question -> Topic -> Subject is valid only if relationships exist; Topic relationship to Subject exists, but chaining via join may require proper join conditions.
+- questions_by_difficulty uses get_question_for_difficulty(db, questions_query, d) but function get_question_for_difficulty takes (db, base_query, difficulty) and then returns base_query.filter(Question.difficulty == difficulty).all() – returning ORM objects bound to the original session; fine.
+- selected_questions selection uses difficulty range(1,6) but elsewhere difficulty allowed up to 6 in models; inconsistency: models default difficulty 3 and comment 1..6, but code uses 1..5. Clarify range.
+- start_quiz creates Quiz_session and user_progress but does not persist user_progress to DB.
+- submit_quiz: references variables before assignment: correct_answers_count used in user_progress logic before being computed; it checks if correct_answers_count / total_questions_answered >= 0.6 but total_questions_answered isn't defined yet. This will raise NameError.
+- submit_quiz does not verify answers vs stored correct_option type; frontend will submit selected option string; matching is direct string compare – works if both are identical.
+- build_quiz_result_out returns QuizResultOut with quiz_session as ORM model; Pydantic response model expects model attributes; may work with from_attributes but QuizResultOut doesn't set from_attributes True; in schemas, QuizResultOut doesn't have Config.from_attributes = True; QuizSessionOut has it, but nested model behavior may need review.
+- There is no endpoint to fetch quiz sessions list; fine.
+
+8) app/core/database.py
+- engine = create_engine(..., connect_args={"check_same_thread": False}) – ok for sqlite.
+- Base metadata create_all not called anywhere; no automatic creation of tables. There's a db/init script in app/db/init_db.py; check if it is used.
+
+9) app/core/security.py
+- SECRET_KEY fallback-insecure-key should be replaced in production; load_dotenv is called but .env file not present in repository.
+- decode_token raises HTTPException(403) but get_current_user expects a JWTError raise; inconsistent error types.
+
+10) tests
+- tests present but not run; ensure they align with current code (not executed here). Review tests files if needed.
+
+Frontend (Samplefrontend)
+
+1) src/api/index.ts
+- baseURL: 'http://localhost:8000' matches FastAPI default 8000. Good.
+- Interceptor uses useUserStore.getState().token. However the token in store is stored in localStorage under 'token'; Login sets token via setToken(res.data.access_token). But in store initial token is localStorage.getItem('token') which may be string or null; good.
+
+2) src/pages/Login.tsx
+- After login, front requests '/users/me' to get role. The login response included role in backend, but the frontend ignores it and fetches me separately. Good.
+- Using FormData to post to /users/login: OAuth2PasswordRequestForm expects application/x-www-form-urlencoded; axios will set Content-Type multipart/form-data when sending FormData, which may not be accepted. Instead, axios should send URLSearchParams or set header 'Content-Type': 'application/x-www-form-urlencoded'. Current code likely fails unless FastAPI accepts both. Common failure: FastAPI's OAuth2PasswordRequestForm expects form data urlencoded, not multipart. So adjust to use URLSearchParams or axios params.
+
+3) src/store/user.ts
+- token stored as localStorage.getItem('token') returns string or null. But setToken stores token under key 'token'. However when api interceptor reads token it uses useUserStore.getState().token; if initial token is null, must ensure store updates. Good.
+
+4) Quiz flow (QuizPrepPage -> QuizPage)
+- QuizPrepPage sends state to /quiz/start using keys like subject_id/topic_id/branch_id depending on category; but QuizPage's start call constructs payload with [params.category + '_id']: params.itemId, num_questions: params.numQuestions. Chinese mismatch: backend expects fields subject_id, topic_id, branch_id, and num_questions or num_questions? Backend QuizStartRequest expects num_questions? In schemas QuizStartRequest defines num_questions: int = 3? Checking schema: in app/schemas.py, QuizStartRequest has num_questions? It defines num_questions as num_questions? Let's re-check: earlier read shows field is num_questions? In schemas I saw num_questions as num_questions? Wait: I read QuizStartRequest earlier: it had num_questions: int = 3? Let's search. (But since we're not to call additional tools too many times, I will re-open schemas quickly to confirm.)
+
+-- quick check: In `app/schemas.py` QuizStartRequest property was 'num_questions: int = 3' yes earlier. The frontend sends 'num_questions' or 'num_questions'? In QuizPrepPage it sends numQuestions in state and then QuizPage posts 'num_questions: params.numQuestions' Good.
+
+- However in QuizPage, state param names: it checks params.category, params.itemId, params.numQuestions — QuizPrepPage sets category, itemId, numQuestions. Good. QuizPage posts '/quiz/start' with payload having key [params.category + '_id'] set. If category === 'subject', key subject_id is passed. Good.
+
+5) types: frontend expects question.id as string in QuizPage; backend returns id as number. Minor type mismatch but TypeScript can coerce; better to use number.
+
+6) auth: store.role is set after fetching /users/me; however some pages rely on role to conditionally show NavBar; initial load may not have role set and NavBar renders default; consider fetching /users/me on app mount if token exists.
+
+7) Missing frontend pages: There are many pages in src/pages but some routes may be missing in App.tsx; I haven't read App.tsx. Need to check.
+
+Integration mismatches found
+
+- OAuth2 form encoding: frontend uses FormData (multipart) while FastAPI expects urlencoded form for OAuth2PasswordRequestForm. Replace with URLSearchParams or axios.post with params serialized.
+
+- /users/login response: backend returns role in body but Pydantic Token model doesn't have role field. Frontend ignores token.role and fetches /users/me; consider returning user object or role explicitly.
+
+- generate.py prints instead of returning hash and runs at import time.
+
+- submit_quiz bug: uses variables before assignment (total_questions_answered) and does user_progress logic with zero correct_answers_count.
+
+- start_quiz: user_progress not saved; difficulty ranges inconsistent (1..5 vs 1..6).
+
+- models: ID types and config.seed_data assigning string ids to integer primary key (Subject.id) likely to fail.
+
+Chronological step-by-step fix list (detailed)
+
+Note: tasks are numbered for implementers; each step includes files to edit and test commands.
+
+Backend fixes (eduz_backend)
+
+1) Fix `generate.py` utility
+- Problem: prints hash and runs at import.
+- Actions:
+  a) Change `hash_password` to return hashed string instead of printing.
+  b) Remove the top-level call `hash_password("Secret123!")` or guard it under `if __name__ == '__main__'` and print there only for CLI usage.
+- Files: `eduz_backend/generate.py`
+- Tests: import generate and call function in REPL to ensure it returns a string. (pytest unit test optional)
+
+2) Fix `config.seed_data` to use integer IDs or use separate gce_id field
+- Problem: `Subject.id` is Integer but seed_data sets id to gce_id (string like '0515').
+- Actions:
+  a) Modify `Subject` model to add `gce_id` Column(String, nullable=True) to store exam code, keep `id` as integer auto.
+  b) Update seed_data to set gce_id on Subject instead of id.
+  c) Alternatively parse gce_id to integer if intentionally numeric (but leading zeros will be lost). Better to add `gce_id` string field.
+- Files: `eduz_backend/app/models.py`, `eduz_backend/config.py`.
+- Tests: seed_data should run without throwing type error; verify session inserts.
+
+3) Database table creation / migrations
+- Problem: No automatic create_all call; alembic present but migrations may not be applied.
+- Actions:
+  a) Add a utility script `app/db/init_db.py` (already exists) to call Base.metadata.create_all(bind=engine) and document usage in README or run during dev.
+  b) Or run alembic upgrade head in env to initialize DB.
+- Files: check `app/db/init_db.py`, run it.
+- Tests: Start app and ensure endpoints don't error with missing tables.
+
+4) Fix schema & pydantic compatibility
+- Problem: `model_validator` decorator requires pydantic v2. Confirm `requirements.txt` pins pydantic>=2.
+- Actions:
+  a) Check `eduz_backend/requirements.txt`. If it pins pydantic<2, update to v2-compatible or rewrite validators using pydantic v1 style.
+- Files: `eduz_backend/requirements.txt`, `app/schemas.py`.
+
+5) Fix `app/api/quiz.py` critical bugs
+- Problem A: submit_quiz uses variables before assignment and missing persisting user_progress; may crash.
+- Actions A:
+  a) Move correct_answers_count calculation before using it in user_progress logic.
+  b) Compute total_questions_answered early as len(payload.answers) and guard division by zero.
+  c) Update user_progress.current_difficulty based on actual performance after calculating score. Persist user_progress to DB via db.add(user_progress)/commit.
+- Problem B: difficulty range inconsistency
+- Actions B:
+  a) Decide allowed difficulty range (1..6) and update start_quiz to use range(1,7) when preparing questions_by_difficulty.
+- Problem C: track selected question IDs
+- Actions C:
+  a) Store selected question IDs in Quiz_session.responses or a dedicated relationship to verify on submit. For now, add quiz_session.responses = json.dumps({'question_ids': [ids]}) and commit; on submit, validate that submitted ids are subset.
+- Files: `eduz_backend/app/api/quiz.py`, `app/models.py` (if changing Quiz_session.responses representation), migrations.
+- Tests: Run start_quiz, submit_quiz flows using tests/test_quiz.py.
+
+6) Ensure security token handling consistent
+- Problem: decode_token raises HTTPException, get_current_user expects JWTError; unify error handling.
+- Actions:
+  a) change decode_token to raise JWTError on invalid token, or wrap decode_token call in try/except for HTTPException; better: have decode_token raise JWTError as before for auth errors.
+- Files: `app/core/security.py`, `app/core/auth.py`.
+
+7) Minor cleanup in API functions for consistency
+- Actions:
+  a) Ensure endpoints response_models match returned payloads (e.g., /users/login should return Token model or update response_model to include role)
+  b) Remove duplicate dependency declarations in function parameters where unnecessary.
+- Files: `app/api/users.py`.
+
+8) Add missing tests or fix tests to align with code
+- Actions:
+  a) Run `pytest -q` in `eduz_backend` virtual env; fix failures.
+- Files: tests/* .
+
+Frontend fixes (Samplefrontend)
+
+1) Fix login form encoding
+- Problem: Login uses FormData (multipart) while FastAPI OAuth2 expects application/x-www-form-urlencoded.
+- Actions:
+  a) Change Login.tsx to send URLSearchParams: const payload = new URLSearchParams(); payload.append('username', email); payload.append('password', password); await api.post('/users/login', payload);
+  b) Ensure axios does not set Content-Type incorrectly; axios will set application/x-www-form-urlencoded for URLSearchParams.
+- Files: `Samplefrontend/src/pages/Login.tsx`.
+- Tests: Try login flow locally with backend running.
+
+2) Persist user role on app load when token exists
+- Problem: role lost on refresh.
+- Actions:
+  a) On app mount (maybe in `App.tsx`), if token exists in store, call `/users/me` to set role automatically.
+  b) Alternatively, store role in localStorage when setToken called.
+- Files: `Samplefrontend/src/main.tsx` or `App.tsx` (inspect if present).
+
+3) Type mismatches
+- Problem: frontend expects string IDs for questions; backend uses numbers.
+- Actions:
+  a) Update TS types to allow number | string for IDs across quiz components.
+- Files: `Samplefrontend/src/pages/QuizPage.tsx`, `QuizPrepPage.tsx`.
+
+4) Ensure API param names match backend
+- Problem: frontend sends num_questions key as snake_case; backend expects num_questions too. Confirm and standardize.
+- Actions:
+  a) Keep num_questions as snake_case in payload from frontend. Update any discrepancy.
+- Files: `Samplefrontend/src/pages/QuizPage.tsx`, `QuizPrepPage.tsx`.
+
+5) Add global auth header attach fallback
+- Problem: api interceptor reads token from store but store initial token may be null; good but consider setting default header if localStorage token present.
+- Actions:
+  a) Keep as is or set api.defaults.headers.common['Authorization'] if token found on init.
+- Files: `Samplefrontend/src/api/index.ts`.
+
+Double-check pass
+
+I will now re-scan the code areas where I proposed edits to ensure I didn't miss any other issues (quick search for 'num_questions' and 'numQuestions' and 'password' printing, etc.).
+
+(End of initial TO-DO content)
+
+Additional findings from quick re-scan
+
+- `requirements.txt` includes FastAPI, Uvicorn, SQLAlchemy, python-jose, passlib[bcrypt], python-dotenv, and alembic but does not pin `pydantic` explicitly — environment shows pydantic with `model_validator`, so ensure runtime dependency matches code expectations.
+- `app/db/init_db.py` exists and calls `Base.metadata.create_all(bind=engine)`; document that devs should run this or use alembic migrations.
+- Tests reference `Secret123!` password and use `data={username, password}` format for login which aligns with OAuth2; tests may fail if client sends wrong content type — ensure test client posts form data correctly.
+- `Samplefrontend/src/pages/AddQuestionPage.tsx` uses `getValues()` and sessionStorage to draft questions and may submit arrays of questions — backend `create_question` expects a single QuestionCreate payload; ensure AddQuestionPage posts correctly (batch vs single question mismatch).
+- `App.tsx` routing not inspected; ensure all pages in `src/pages/` are wired in `App.tsx` and guarded by auth where needed.
+
+Suggestions (extras, security, architecture)
+
+1) Security
+- Use a strong SECRET_KEY from environment (do not commit .env). Add a `.env.example` with required keys.
+- Increase ACCESS_TOKEN_EXPIRE_MINUTES or implement refresh tokens if needed for longer sessions.
+- Rate-limit endpoints (login, register) to mitigate brute force.
+- Sanitize and validate any content uploaded via AddQuestionPage (prevent XSS in question_text or options).
+
+2) Data & Schema
+- Add `gce_id` (string) to `Subject` model instead of forcing subject.id to become the exam code. Keep auto-increment `id` as primary key.
+- Use `JSON`/`Text` consistently for `Question.options` and `Quiz_session.responses`. Prefer JSON column if DB supports it; otherwise store JSON string in TEXT and document serialization.
+
+3) API / Frontend UX
+- Return minimal user info at login (access_token plus a small `user` object with `id` and `role`) to reduce extra `me` call on front-end.
+- Add an endpoint to refresh user role and profile, and call it on app mount if token exists.
+- Persist `role` in localStorage or rehydrate store on app start to avoid menu flashes.
+
+4) Testing / CI
+- Add pinned dependencies and a `requirements-dev.txt` for test tooling. Add `pytest` and a simple GitHub Actions workflow to run tests on PRs.
+
+5) Small UX / developer convenience
+- Add README dev quickstart steps: create venv, pip install -r requirements.txt, run `python -m app.db.init_db` or `alembic upgrade head`, start backend `uvicorn main:app --reload`, start frontend `pnpm install && pnpm dev` (or npm/yarn)
+
+Final checklist mapping
+
+- Scanned backend files: Done
+- Scanned frontend files: Done
+- Compiled missing components list: Done
+- Created TO-do file in repo root: Done
+

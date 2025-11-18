@@ -1,0 +1,64 @@
+# 💻 Python Script: Bulk Computer Science Question Insertion
+
+I need a complete, standalone Python script using **SQLAlchemy ORM** to connect to a **PostgreSQL** database and perform a **bulk insertion** of Computer Science questions into the `Question` table.
+
+The script must be runnable and contain all necessary boilerplate and setup.
+
+---
+
+## 1. Prerequisites and Database Setup
+
+1.  **SQLAlchemy Models:** The script must use the following models defined in `model.py`: `User`, `Subject`, `Branch`, `Topic`, and `Question`.
+2.  **Connection:** Use a placeholder variable for the PostgreSQL connection string.
+    * **Example:** `DATABASE_URL = "postgresql+psycopg2://user:pass@localhost:5432/my_quiz_db"`
+3.  **Engine & Session:** The script must establish an **Engine** and use a **Session** to manage the database connection and transactions.
+
+---
+
+## 2. Required Data Setup (Foreign Keys)
+
+The script must first ensure the necessary records for the foreign keys exist. It should use `session.merge()` or similar logic to safely insert/retrieve the required data to avoid duplicate entries on subsequent runs.
+
+### A. User (Question Creator)
+
+* **Action:** Create or retrieve the User record.
+* **Details:** The question creator is the user with **`id = 6`** and `name = 'Sam'`.
+* **Fields:**
+    * `id`: **6**
+    * `name`: 'Sam'
+    * `email`: 'sam@example.com' (placeholder)
+    * `role`: 'teacher' (placeholder)
+* **Linkage:** The `created_by` field for all questions must be set to **`6`**.
+
+### B. Subject, Branches, and Topics
+
+* **Subject:** Create or get a **Subject** named **'Computer Science'**.
+    * `name='Computer Science'`
+    * `level='University'` (or any suitable academic level)
+* **Branches & Topics:** Create or get the following **Branches** and their associated **Topics** under the 'Computer Science' subject.
+
+| Branch Name | Topic Names |
+| :--- | :--- |
+| **Programming** | Algorithms, Data Structures, Python Basics, Object-Oriented Concepts, Recursion, Sorting, Searching |
+| **Networking** | OSI Model, TCP/IP, Routing & Switching, Network Security, Subnetting, Firewalls, DNS |
+| **Database** | SQL Queries, Relational Algebra, Normalization (1NF, 2NF, 3NF), NoSQL Concepts, Transactions, Indexing |
+| **System Software** | Operating Systems, Memory Management, Process Scheduling, Compilers, Linkers, Loaders |
+| **Web Development** | HTML/CSS, JavaScript Basics, Frontend Frameworks, Backend Development (e.g., REST APIs) |
+
+---
+
+## 3. Question Data Generation and Insertion
+
+1.  **Quantity:** The script must generate a list of a **minimum of 50 unique questions**, but **preferably 100 or more**.
+2.  **Quality:** Questions must be high-quality, multiple-choice, and distributed logically across the created **Topics** and **Branches**.
+3.  **Model Integrity:** Each question object must respect all fields of the `Question` model:
+    * `question_text` (String, required)
+    * `options` (String - **Format as a comma-separated string, e.g., 'A) Option 1, B) Option 2, C) Option 3, D) Option 4'**)
+    * `correct_option` (String - e.g., 'C', must match one of the options)
+    * `topic_id` (Integer - **Must link to a valid Topic ID**)
+    * `branch_id` (Integer - **Must link to a valid Branch ID**)
+    * `created_by` (Integer - **Must be 6**)
+    * `approved` (Boolean - Default to `False`)
+    * `difficulty` (Integer - Vary between 1 and 5)
+4.  **Efficiency:** Use **`session.add_all()`** for the bulk insertion of the questions.
+5.  **Conclusion:** Print a clear confirmation message stating the total number of new records added and commit the session.
