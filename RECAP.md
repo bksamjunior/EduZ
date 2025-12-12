@@ -123,4 +123,6 @@ What I can do next (pick one)
 - I can run tests and migrations inside the workspace (requires running pip install / alembic / pytest commands here — confirm if you want me to run them).
 - I can update `requirements.txt` to add `psycopg2-binary` and add `.env.example`.
 
-If you want me to proceed with migrations or run commands in your environment, tell me which option (and confirm it's okay to run install/migration/test commands).
+
+
+

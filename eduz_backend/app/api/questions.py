@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 from app.schemas import QuestionCreate, QuestionOut, BranchOut, TopicOut
 from app.schemas import TopicCreate, BranchCreate
 from app.schemas import SubjectCreate, SubjectOut
-from app.models import Question, Topic, Branch, Subject
+from app.schemas import TeacherDashboardStats, QuestionSummary
+from app.models import Question, Topic, Branch, Subject, Quiz_session
 from app.core.database import get_db
 from app.core.auth import require_role
 from typing import List
@@ -135,3 +136,64 @@ def get_topics_by_level(level: str, db: Session = Depends(get_db)):
 @router.get("/branches/by_level/{level}", response_model=List[BranchOut])
 def get_branches_by_level(level: str, db: Session = Depends(get_db)):
     return db.query(Branch).join(Subject).filter(Subject.level == level).all()
+
+@router.get("/teacher/dashboard", response_model=TeacherDashboardStats, dependencies=[Depends(require_role("teacher", "admin"))])
+def get_teacher_dashboard(db: Session = Depends(get_db), current_user=Depends(require_role("teacher", "admin"))):
+    """
+    Returns dashboard statistics for a teacher.
+    Includes questions created, difficulty distribution, and student usage stats.
+    """
+    # Get all questions created by the teacher
+    questions = db.query(Question).filter(Question.created_by == current_user.id).all()
+    
+    # Build question summary
+    question_summaries = []
+    total_difficulty_score = 0
+    
+    for q in questions:
+        # Count how many quiz sessions used this question
+        usage_count = db.query(Quiz_session).filter(
+            Quiz_session.questions.ilike(f'%{q.id}%')  # Rough count, assumes questions stored as list
+        ).count()
+        
+        question_summaries.append(
+            QuestionSummary(
+                question_id=q.id,
+                question_text=q.question_text,
+                difficulty=q.difficulty,
+                approved=q.approved,
+                usage_count=usage_count,
+                created_at=q.created_at
+            )
+        )
+        # Accumulate difficulty score for averaging (difficulty is already 1-6 integer)
+        total_difficulty_score += q.difficulty
+    
+    # Calculate statistics
+    total_questions = len(questions)
+    approved_count = sum(1 for q in questions if q.approved)
+    pending_count = total_questions - approved_count
+    
+    # Count difficulty distribution (1-6 scale: 1-2=easy, 3-4=medium, 5-6=hard)
+    easy_count = sum(1 for q in questions if q.difficulty in [1, 2])
+    medium_count = sum(1 for q in questions if q.difficulty in [3, 4])
+    hard_count = sum(1 for q in questions if q.difficulty in [5, 6])
+    
+    # Calculate average difficulty (1-6 scale)
+    avg_difficulty = round(total_difficulty_score / total_questions, 2) if total_questions > 0 else 0.0
+    
+    # Total times students have used teacher's questions
+    total_student_usage = sum(q.usage_count for q in question_summaries)
+    
+    return TeacherDashboardStats(
+        user_id=current_user.id,
+        total_questions=total_questions,
+        approved_count=approved_count,
+        pending_count=pending_count,
+        easy_count=easy_count,
+        medium_count=medium_count,
+        hard_count=hard_count,
+        average_difficulty=avg_difficulty,
+        total_student_usage=total_student_usage,
+        questions=question_summaries
+    )

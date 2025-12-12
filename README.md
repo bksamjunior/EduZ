@@ -21,3 +21,5 @@ Simple auth system (email/password or phone ID with JWT)
 Student quiz results are stored locally first
 When online, data syncs to central server
 Prioritize SQLite + background sync pattern
+
+

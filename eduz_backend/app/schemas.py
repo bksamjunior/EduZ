@@ -157,3 +157,74 @@ class QuizStartResponse(BaseModel):
 class QuizResultOut(BaseModel):
     quiz_session: QuizSessionOut
     message: str
+
+# Dashboard schemas
+class QuizHistoryItem(BaseModel):
+    """Individual quiz history entry"""
+    quiz_id: int
+    score: float
+    total_questions: int
+    correct_answers: int
+    difficulty: str
+    completed_at: datetime
+    class Config:
+        from_attributes = True
+
+class StudentDashboardStats(BaseModel):
+    """Student dashboard summary stats"""
+    user_id: int
+    total_quizzes: int
+    average_score: float
+    highest_score: float
+    lowest_score: float
+    total_attempts: int
+    easy_count: int
+    medium_count: int
+    hard_count: int
+    quiz_history: List[QuizHistoryItem]
+    class Config:
+        from_attributes = True
+
+class QuestionSummary(BaseModel):
+    """Summary of a question created by teacher"""
+    question_id: int
+    question_text: str
+    difficulty: str
+    approved: bool
+    usage_count: int
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class TeacherDashboardStats(BaseModel):
+    """Teacher dashboard summary stats"""
+    user_id: int
+    total_questions: int
+    approved_count: int
+    pending_count: int
+    easy_count: int
+    medium_count: int
+    hard_count: int
+    average_difficulty: float
+    total_student_usage: int
+    questions: List[QuestionSummary]
+    class Config:
+        from_attributes = True
+
+class AdminDashboardStats(BaseModel):
+    """Admin dashboard summary stats"""
+    total_users: int
+    student_count: int
+    teacher_count: int
+    admin_count: int
+    total_questions: int
+    approved_questions: int
+    pending_questions: int
+    easy_questions: int
+    medium_questions: int
+    hard_questions: int
+    total_quiz_sessions: int
+    completed_sessions: int
+    class Config:
+        from_attributes = True
+

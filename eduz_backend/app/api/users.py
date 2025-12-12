@@ -6,8 +6,8 @@ from fastapi.security import OAuth2PasswordRequestForm
 from typing import List
 from pydantic import BaseModel
 
-from app.schemas import UserCreate, UserOut, Token
-from app.models import User
+from app.schemas import UserCreate, UserOut, Token, AdminDashboardStats
+from app.models import User, Question, Quiz_session
 from app.core import security, database
 from app.core.auth import get_current_user, require_role
 
@@ -92,3 +92,49 @@ def promote_user(
 @router.get("/", response_model=List[UserOut], dependencies=[Depends(require_role("admin"))])
 def list_users(db: Session = Depends(database.get_db)):
     return db.query(User).all()
+
+@router.get("/admin/dashboard", response_model=AdminDashboardStats, dependencies=[Depends(require_role("admin"))])
+def get_admin_dashboard(
+    db: Session = Depends(database.get_db),
+    _admin: User = Depends(require_role("admin"))
+):
+    """
+    Returns system-wide dashboard statistics for administrators.
+    Includes user counts by role, total questions, and total quiz sessions.
+    """
+    # Count users by role
+    total_users = db.query(User).count()
+    student_count = db.query(User).filter(User.role == "student").count()
+    teacher_count = db.query(User).filter(User.role == "teacher").count()
+    admin_count = db.query(User).filter(User.role == "admin").count()
+    
+    # Count questions
+    total_questions = db.query(Question).count()
+    approved_questions = db.query(Question).filter(Question.approved == True).count()
+    pending_questions = total_questions - approved_questions
+    
+    # Count quizzes
+    total_quiz_sessions = db.query(Quiz_session).count()
+    completed_sessions = db.query(Quiz_session).filter(Quiz_session.ended_at.isnot(None)).count()
+    
+    # Calculate difficulty distribution (1-6 scale: 1-2=easy, 3-4=medium, 5-6=hard)
+    from sqlalchemy import or_
+    easy_questions = db.query(Question).filter(or_(Question.difficulty == 1, Question.difficulty == 2)).count()
+    medium_questions = db.query(Question).filter(or_(Question.difficulty == 3, Question.difficulty == 4)).count()
+    hard_questions = db.query(Question).filter(or_(Question.difficulty == 5, Question.difficulty == 6)).count()
+    
+    return AdminDashboardStats(
+        total_users=total_users,
+        student_count=student_count,
+        teacher_count=teacher_count,
+        admin_count=admin_count,
+        total_questions=total_questions,
+        approved_questions=approved_questions,
+        pending_questions=pending_questions,
+        easy_questions=easy_questions,
+        medium_questions=medium_questions,
+        hard_questions=hard_questions,
+        total_quiz_sessions=total_quiz_sessions,
+        completed_sessions=completed_sessions
+    )
+

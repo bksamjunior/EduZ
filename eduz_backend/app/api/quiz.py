@@ -14,7 +14,9 @@ from app.schemas import (
     QuizSubmissionRequest,
     QuizResultOut,
     QuizSessionOut,
-    QuizStartResponse
+    QuizStartResponse,
+    StudentDashboardStats,
+    QuizHistoryItem
     )
 from typing import List, Optional
 
@@ -311,3 +313,87 @@ def get_quiz_result(
     if not quiz_session.ended_at:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quiz session is not yet completed.")
     return build_quiz_result_out(quiz_session)
+
+@router.get(
+    "/student/dashboard",
+    response_model=StudentDashboardStats,
+    dependencies=[Depends(require_role("student"))]
+)
+def get_student_dashboard(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("student"))
+):
+    """
+    Returns dashboard statistics for the logged-in student.
+    Includes quiz history, score statistics, and difficulty progression.
+    """
+    # Get all completed quiz sessions for the current user
+    quiz_sessions = db.query(Quiz_session).filter(
+        Quiz_session.user_id == current_user.id,
+        Quiz_session.ended_at.isnot(None)
+    ).order_by(Quiz_session.ended_at.desc()).all()
+    
+    # Build quiz history
+    quiz_history = []
+    total_score = 0
+    for session in quiz_sessions:
+        # Calculate average difficulty from responses JSON
+        difficulty_str = "medium"  # Default
+        if session.responses and isinstance(session.responses, list) and len(session.responses) > 0:
+            avg_difficulty = sum(r.get("difficulty", 3) for r in session.responses) / len(session.responses)
+            if avg_difficulty <= 2:
+                difficulty_str = "easy"
+            elif avg_difficulty <= 4:
+                difficulty_str = "medium"
+            else:
+                difficulty_str = "hard"
+        
+        quiz_history.append(
+            QuizHistoryItem(
+                quiz_id=session.id,
+                score=session.score,
+                total_questions=session.total_questions,
+                correct_answers=session.correct_answers,
+                difficulty=difficulty_str,
+                completed_at=session.ended_at
+            )
+        )
+        total_score += session.score
+    
+    # Calculate statistics
+    total_quizzes = len(quiz_sessions)
+    average_score = round(total_score / total_quizzes, 2) if total_quizzes > 0 else 0.0
+    highest_score = max([s.score for s in quiz_sessions]) if quiz_sessions else 0.0
+    lowest_score = min([s.score for s in quiz_sessions]) if quiz_sessions else 0.0
+    total_attempts = sum([s.total_questions for s in quiz_sessions])
+    
+    # Count quizzes by difficulty (based on question difficulties in responses)
+    easy_quizzes = 0
+    medium_quizzes = 0
+    hard_quizzes = 0
+    
+    for session in quiz_sessions:
+        if session.responses and isinstance(session.responses, list) and len(session.responses) > 0:
+            avg_difficulty = sum(r.get("difficulty", 3) for r in session.responses) / len(session.responses)
+            if avg_difficulty <= 2:
+                easy_quizzes += 1
+            elif avg_difficulty <= 4:
+                medium_quizzes += 1
+            else:
+                hard_quizzes += 1
+        else:
+            medium_quizzes += 1  # Default to medium
+    
+    return StudentDashboardStats(
+        user_id=current_user.id,
+        total_quizzes=total_quizzes,
+        average_score=average_score,
+        highest_score=highest_score,
+        lowest_score=lowest_score,
+        total_attempts=total_attempts,
+        easy_count=easy_quizzes,
+        medium_count=medium_quizzes,
+        hard_count=hard_quizzes,
+        quiz_history=quiz_history
+    )
+
